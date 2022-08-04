@@ -18,9 +18,12 @@ package com.google.samples.apps.sunflower.plantdetail
 
 import android.content.res.Configuration
 import android.os.Bundle
+import android.text.method.LinkMovementMethod
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.TextView
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.wrapContentWidth
@@ -28,73 +31,116 @@ import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Surface
 import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.livedata.observeAsState
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.dimensionResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.text.HtmlCompat
 import androidx.databinding.DataBindingUtil
 import androidx.fragment.app.Fragment
+import androidx.fragment.app.viewModels
 import com.google.samples.apps.sunflower.R
+import com.google.samples.apps.sunflower.data.Plant
 import com.google.samples.apps.sunflower.databinding.FragmentPlantDetailBinding
+import com.google.samples.apps.sunflower.utilities.InjectorUtils
+import com.google.samples.apps.sunflower.viewmodels.GardenPlantingListViewModel
+import com.google.samples.apps.sunflower.viewmodels.PlantDetailViewModel
 
-class PlantDetailDescription: Fragment(){
-    override fun onCreateView(
-        inflater: LayoutInflater,
-        container: ViewGroup?,
-        savedInstanceState: Bundle?
-    ): View? {
-        val binding = DataBindingUtil.inflate<com.google.samples.apps.sunflower.databinding.FragmentPlantDetailBinding>(
-            inflater, R.layout.fragment_plant_detail, container, false
-        ).apply {
-            composeView.setContent {
-                // You're in Compose world!
-                MaterialTheme {
-                    PlantDetailDescription()
-                }
-            }
-        }
+@Composable
+fun PlantDetailDescription(plantDetailViewModel: PlantDetailViewModel) {
+    // Observes values coming from the VM's LiveData<Plant> field
+    val plant by plantDetailViewModel.plant.observeAsState()
 
-        return binding.root
+    // If plant is not null, display the content
+    plant?.let {
+        PlantDetailContent(it)
     }
+}
 
-    @Composable
-    fun PlantDetailDescription() {
-        Surface {
-            Text("Hello Compose")
-        }
-    }
+@Composable
+fun PlantName(name: String){
+    Text(
+        text = name,
+        style = MaterialTheme.typography.h5,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = dimensionResource(R.dimen.margin_small))
+            .wrapContentWidth(Alignment.CenterHorizontally)
+    )
+}
 
-    @Composable
-    fun PlantName(name: String){
+@Composable
+private fun PlantWatering(wateringInterval: Int) {
+    Column(Modifier.fillMaxWidth()) {
+        // Same modifier used by both Texts
+        val centerWithPaddingModifier = Modifier
+            .padding(horizontal = dimensionResource(R.dimen.margin_small))
+            .align(Alignment.CenterHorizontally)
+
+        val normalPadding = dimensionResource(R.dimen.margin_normal)
         Text(
-            text = name,
-            style = MaterialTheme.typography.h5,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = dimensionResource(R.dimen.margin_small))
-                .wrapContentWidth(Alignment.CenterHorizontally)
+            text = stringResource(R.string.watering_needs_prefix),
+            color = MaterialTheme.colors.primaryVariant,
+            fontWeight = FontWeight.Bold,
+            modifier = centerWithPaddingModifier.padding(top = normalPadding)
+        )
+
+        val wateringIntervalText = LocalContext.current.resources.getQuantityString(
+            R.plurals.watering_needs_suffix, wateringInterval, wateringInterval
+        )
+        Text(
+            text = wateringIntervalText,
+            modifier = centerWithPaddingModifier.padding(bottom = normalPadding)
         )
     }
+}
 
-    //Parte per la preview
-    @Preview(name = "Light Mode")
-    @Preview(
-        uiMode = Configuration.UI_MODE_NIGHT_YES,
-        showBackground = true,
-        name = "Dark Mode"
-    )
-    @Composable
-    fun PreviewConversation() {
-        MaterialTheme {
-            PlantDetailDescription()
-        }
+@Composable
+private fun PlantDescription(description: String) {
+    // Remembers the HTML formatted description. Re-executes on a new description
+    val htmlDescription = remember(description) {
+        HtmlCompat.fromHtml(description, HtmlCompat.FROM_HTML_MODE_COMPACT)
     }
 
-    @Preview
-    @Composable
-    private fun PlantNamePreview() {
-        MaterialTheme {
-            PlantName("Apple")
+    // Displays the TextView on the screen and updates with the HTML description when inflated
+    // Updates to htmlDescription will make AndroidView recompose and update the text
+    AndroidView(
+        factory = { context ->
+            TextView(context).apply {
+                movementMethod = LinkMovementMethod.getInstance()
+            }
+        },
+        update = {
+            it.text = htmlDescription
         }
+    )
+}
+
+@Composable
+fun PlantDetailContent(plant: Plant) {
+    Surface {
+        Column(Modifier.padding(dimensionResource(R.dimen.margin_normal))) {
+            PlantName(plant.name)
+            PlantWatering(plant.wateringInterval)
+            PlantDescription(plant.description)
+        }
+    }
+}
+
+
+//Parte per la preview
+@Preview
+@Composable
+private fun PlantDetailContentPreview() {
+    val plant = Plant("id", "Apple", "HTML<br><br>description", 3, 30, "")
+    MaterialTheme {
+        PlantDetailContent(plant)
     }
 }
